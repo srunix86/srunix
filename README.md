@@ -11,4 +11,4 @@ https://www.donationalerts.com/r/srunix
 Download dependencies for compilation: `nasm, gcc, binutils, grub2 (or grub in Arch), xorriso, make`, then use one of the make files:
 `./make # for bash`
 or
-`make` # if bash is not installed.
+`make # if bash is not installed.`

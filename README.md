@@ -6,5 +6,4 @@ There are no programs for partitioning and installation on a real disk in the sy
 The original Srunix was created a long time ago by one person, Fedor Shimor. It was a kernel for YobaOS, which was created for typewriters with a processor, but no one had heard of this operating system, much less the kernel, and development stopped. But in 2022, the development of Srunix R.E began for personal PCs on amd64 processors. Now Srunix R.E. supports only VGA mode and runs only on old or specific PCs with x86_64 processors. On modern PCs, the OS is unlikely to be botched. And the original Srunix was lost forever.
 # Development:
 If you want to help with the development of Srunix R.E., then you can write to the main developer by email: `srunix@yandex.ru`. If you don’t know how to code, but want to help develop the project, you can simply write a support letter by email or donate through the DonationAlerts platform:
-
 https://www.donationalerts.com/r/srunix

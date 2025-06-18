@@ -9,6 +9,7 @@ If you want to help with the development of Srunix R.E., then you can write to t
 https://www.donationalerts.com/r/srunix
 # ISO compilation:
 Download dependencies for compilation: `nasm, gcc, binutils, grub2, xorriso, make`, then use one of the make files:
+
 `./make # for bash`
 or
 `make # if bash is not installed.`

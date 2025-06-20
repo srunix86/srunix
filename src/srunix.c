@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include "code_ed.h"
+#include "ced.h"
 
 #define COM1 0x3F8
 #define VIDEO_MEMORY ((volatile uint16_t*)0xB8000)

@@ -1,4 +1,3 @@
-# Srunix R.E. - Free OpenSource Unix-like OS.
 # Main:
 Srunix R.E. - Open multi-user operating system, Unix-like system. It is a reworking of the original Srunix, which was created a long time ago by the same developers, and was later lost.
 Srunix R.E. - stands for Srunix Remastered Edition. The operating system itself has a lot of everything; it meets all the requirements to be called an OS. It has its own File System (bkFS), which is a reinterpretation of UFS - Unix File System. The system has a login screen, like in Unix systems, multitasking, tty and much more. The system supports all SUS - Single UNIX Specification standards, but still cannot be called Unix.

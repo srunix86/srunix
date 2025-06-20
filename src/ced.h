@@ -1,5 +1,5 @@
-#ifndef CODE_ED_H
-#define CODE_ED_H
+#ifndef CED_H
+#define CED_H
 
 void terminal_writestring(const char* data);
 void terminal_putchar(char c);

@@ -421,6 +421,27 @@ static inline void io_wait() {
     outb(0x80, 0);
 }
 
+bool is_valid_filename(const char* name) {
+    const char* invalid_chars = "&;|*?'\"`[]()$<>{}^#\\/%!";
+    if (strlen(name) == 0) return false;
+    
+    for (const char* c = name; *c; c++) {
+        if (strchr(invalid_chars, *c)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool file_exists_in_current_dir(const char* name) {
+    for (int i = 0; i < file_count; i++) {
+        if (files[i].parent_inode == current_inode && strcmp(files[i].name, name) == 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void initialize_ttys() {
     for (int i = 0; i < MAX_TTYS; i++) {
         ttys[i].row = 0;
@@ -793,6 +814,16 @@ void fs_free_block(uint32_t block_num) {
 }
 
 int fs_create_file(const char* name, uint32_t parent_inode, uint8_t type) {
+    if (!is_valid_filename(name)) {
+        terminal_writestring("Invalid filename: contains forbidden characters\n");
+        return FS_ERROR;
+    }
+    
+    if (file_exists_in_current_dir(name)) {
+        terminal_writestring("Change name\n");
+        return FS_ERROR;
+    }
+    
     if (file_count >= MAX_FILES) return FS_ERROR;
     int inode_num = fs_alloc_inode();
     if (inode_num == -1) return FS_ERROR;
@@ -1172,6 +1203,68 @@ void execute_beep() {
     no_sound();
 }
 
+void show_boot_menu() {
+    terminal_setcolor(COLOR_GREEN, COLOR_BLACK);
+    terminal_clear();
+    terminal_writestring("\n Srunix R.E. Boot Menu\n");
+    terminal_writestring(" Copyright (c) 2022, 2023, 2024, 2025 Srunix R.E. BSD 3.0 License\n\n");
+
+    terminal_writestring("                   _________________________________\n");
+    terminal_writestring("                  |            Boot Menu    _  [] X |\n");
+    terminal_writestring("  ,---. ,--.--.   |_________________________________|\n");
+    terminal_writestring(" (  .-' |  .--'   |                                 |\n");
+    terminal_writestring(" .-'  `)|  |      | 1. Boot Normally [Enter]        |\n");
+    terminal_writestring(" `----' `--'      |                                 |\n");
+    terminal_writestring(" ,--.,--.,--,--,  | 2. Escape to loader prompt      |\n");
+    terminal_writestring(" |  ||  ||      \\ |                                 |\n");
+    terminal_writestring(" '  ''  '|  ||  | | 3. Reboot                       |\n");
+    terminal_writestring("  `----' `--''--' |                                 |\n");
+    terminal_writestring(" ,--.             | 4. Poweroff                     |\n");
+    terminal_writestring(" `--',--.  ,--.   |_________________________________|\n");
+    terminal_writestring(" ,--. \\  `'  /    |                                 |\n");
+    terminal_writestring(" |  | /  /.  \\    |           SRUNIX R.E.           |\n");
+    terminal_writestring(" `--''--'  '--'   |_________________________________|\n\n");
+    
+    terminal_writestring(" Select an option (1-4) or press Enter to boot: ");
+}
+
+void boot_menu() {
+    show_boot_menu();
+    
+    while (1) {
+        char c = keyboard_getchar();
+        
+        if (c == '\n' || c == '1') {
+            terminal_writestring("\n\nBooting Srunix R.E...\n");
+            
+            terminal_writestring("Initializing kernel...\n");
+            for (volatile int i = 0; i < 1000000; i++);
+            
+            terminal_writestring("Mounting root filesystem...\n");
+            for (volatile int i = 0; i < 1000000; i++);
+            
+            terminal_writestring("Starting system services...\n");
+            for (volatile int i = 0; i < 1000000; i++);
+            
+            terminal_writestring("Launching login manager...\n\n");
+            for (volatile int i = 0; i < 2000000; i++);
+            
+            break;
+        } else if (c == '2') {
+            terminal_writestring("\n\nLoader prompt not implemented yet.\n");
+            show_boot_menu();
+        } else if (c == '3') {
+            terminal_writestring("\n\n \n");
+            for (volatile int i = 0; i < 3000000; i++);
+            execute_reboot();
+        } else if (c == '4') {
+            terminal_writestring("\n\n\n");
+            for (volatile int i = 0; i < 3000000; i++);
+            execute_poweroff();
+        }
+    }
+}
+
 void execute_sysinfo() {
     terminal_writestring("system Info:\n");
     uint32_t used_memory_kb = (next_node_addr - 0x100000) / 1024;
@@ -1256,6 +1349,14 @@ void execute_fetch() {
     strcat(uptime_str, " hours, ");
     strcat(uptime_str, mins_str);
     strcat(uptime_str, " mins");
+    
+    uint8_t colors[] = {
+        COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLUE, 
+        COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE, COLOR_BRIGHT_RED,
+        COLOR_BRIGHT_GREEN, COLOR_BRIGHT_BLUE, COLOR_BRIGHT_MAGENTA,
+        COLOR_BRIGHT_CYAN
+    };
+    
     terminal_writestring("              srunix\n");
     terminal_writestring("              ----------- \n");
     terminal_writestring("  ___ ___     OS: Srunix R.E. x86_64 \n");
@@ -1286,11 +1387,33 @@ void execute_fetch() {
     terminal_writestring(" KB / ");
     terminal_writestring(mem_total_str);
     terminal_writestring(" KB\n");
-    terminal_writestring("              \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n");
-    terminal_writestring("              \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n");
+    
+    terminal_writestring("              ");
+    for (int i = 0; i < 7; i++) {
+        terminal_setcolor(colors[i % sizeof(colors)], colors[i % sizeof(colors)]);
+        terminal_putchar('\xDB');
+    }
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring("\n              ");
+    for (int i = 0; i < 7; i++) {
+        terminal_setcolor(colors[(i + 3) % sizeof(colors)], colors[(i + 3) % sizeof(colors)]);
+        terminal_putchar('\xDB');
+    }
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring("\n");
 }
 
 void execute_mkfile(char* filename) {
+    if (!is_valid_filename(filename)) {
+        terminal_writestring("Invalid filename: contains forbidden characters\n");
+        return;
+    }
+    
+    if (file_exists_in_current_dir(filename)) {
+        terminal_writestring("НЕТ!\n");
+        return;
+    }
+    
     if (fs_create_file(filename, current_inode, FILE_REGULAR) == FS_SUCCESS) {
         terminal_printf("File '%s' created\n", filename);
     } else {
@@ -1299,6 +1422,16 @@ void execute_mkfile(char* filename) {
 }
 
 void execute_mkdir(char* dirname) {
+    if (!is_valid_filename(dirname)) {
+        terminal_writestring("Invalid directory name: contains forbidden characters\n");
+        return;
+    }
+    
+    if (file_exists_in_current_dir(dirname)) {
+        terminal_writestring("Change name\n");
+        return;
+    }
+    
     if (fs_create_file(dirname, current_inode, FILE_DIR) == FS_SUCCESS) {
         terminal_printf("'%s' created\n", dirname);
     } else {
@@ -1630,6 +1763,9 @@ void kernel_main() {
     memset(block_used, 0, sizeof(block_used));
     free_blocks = MAX_BLOCKS;
     free_inodes = MAX_INODES;
+
+    boot_menu();
+
     fs_create_file("root", 1, FILE_DIR);
     current_inode = 1;
     fs_create_file("bin", 1, FILE_DIR);
@@ -1654,6 +1790,8 @@ void kernel_main() {
         fs_create_file("vga", dev_inode, FILE_REGULAR);
         fs_create_file("vga1", dev_inode, FILE_REGULAR);
         fs_create_file("vga2", dev_inode, FILE_REGULAR);
+	fs_create_file("null", dev_inode, FILE_REGULAR);
+	fs_create_file("random", dev_inode, FILE_REGULAR);
     }
     uint32_t bin_inode = 0;
     for (int i = 0; i < file_count; i++) {

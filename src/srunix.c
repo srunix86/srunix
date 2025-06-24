@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <stdarg.h>
-#include "ced.h"
+#include "info.h"
 
 #define COM1 0x3F8
 #define VIDEO_MEMORY ((volatile uint16_t*)0xB8000)
@@ -40,6 +40,8 @@
 #define BLOCK_SIZE 1024
 #define INODE_DIRECT_BLOCKS 12
 #define MAX_TTYS 9
+#define MAX_PIPES 10
+#define HISTORY_SIZE 100
 
 #define KEY_ENTER     0x1C
 #define KEY_BACKSPACE 0x0E
@@ -72,6 +74,16 @@
 #define FS_SUCCESS 0
 #define FS_ERROR   1
 
+#define LOG_LEVEL_DEBUG 0
+#define LOG_LEVEL_INFO  1
+#define LOG_LEVEL_WARN  2
+#define LOG_LEVEL_ERROR 3
+
+#define SIGINT  2
+#define SIGKILL 9
+#define SIGSTOP 19
+#define SIGCONT 18
+
 volatile uint16_t* terminal_buffer = VIDEO_MEMORY;
 size_t terminal_row = 0;
 size_t terminal_column = 0;
@@ -88,6 +100,7 @@ char* strcpy(char* dest, const char* src);
 char* strcat(char* dest, const char* src);
 char* strncpy(char* dest, const char* src, size_t n);
 int strncmp(const char* s1, const char* s2, size_t n);
+char* strtok(char* str, const char* delim);
 
 void* malloc(size_t size);
 void free(void* ptr);
@@ -206,12 +219,46 @@ int strncmp(const char* s1, const char* s2, size_t n) {
     return *(const unsigned char*)s1 - *(const unsigned char*)s2;
 }
 
+char* strpbrk(const char* s, const char* accept) {
+    while (*s != '\0') {
+        const char* a = accept;
+        while (*a != '\0') {
+            if (*s == *a) {
+                return (char*)s;
+            }
+            a++;
+        }
+        s++;
+    }
+    return NULL;
+}
+
+
 char* strdup(const char* s) {
     size_t len = strlen(s) + 1;
     char* new = malloc(len);
     if (new == NULL) return NULL;
     memcpy(new, s, len);
     return new;
+}
+
+char* strtok(char* str, const char* delim) {
+    static char* saved_str = NULL;
+    if (str != NULL) {
+        saved_str = str;
+    }
+    if (saved_str == NULL || *saved_str == '\0') {
+        return NULL;
+    }
+    char* token_start = saved_str;
+    char* token_end = strpbrk(saved_str, delim);
+    if (token_end != NULL) {
+        *token_end = '\0';
+        saved_str = token_end + 1;
+    } else {
+        saved_str = NULL;
+    }
+    return token_start;
 }
 
 typedef struct {
@@ -242,11 +289,13 @@ typedef struct {
 typedef struct {
     uint32_t pid;
     uint32_t ppid;
+    uint32_t pgid;
     char name[32];
     uint32_t priority;
     uint32_t state;
     uintptr_t stack_ptr;
     uintptr_t entry_point;
+    uint32_t exit_code;
 } Process;
 
 typedef struct {
@@ -293,6 +342,14 @@ typedef struct {
     bool logged_in;
 } TTY;
 
+typedef struct {
+    char buffer[1024];
+    size_t read_pos;
+    size_t write_pos;
+    bool is_full;
+    bool is_empty;
+} Pipe;
+
 volatile uint32_t timer_ticks = 0;
 #define TIMER_HZ 18.2
 uint32_t boot_time = 0;
@@ -327,6 +384,14 @@ bool caps_lock = false;
 
 Process processes[MAX_PROCESSES];
 int process_count = 0;
+int current_process = 0;
+
+Pipe pipes[MAX_PIPES];
+int pipe_count = 0;
+
+char command_history[HISTORY_SIZE][MAX_CMD_LEN];
+int history_count = 0;
+int history_pos = 0;
 
 void kernel_main();
 void kernel_panic(const char* message);
@@ -345,6 +410,13 @@ void switch_tty(int tty_num);
 void save_tty_state();
 void restore_tty_state();
 void initialize_ttys();
+void execute_ps();
+void execute_jobs();
+void execute_kill(char* pid_str, char* sig_str);
+void klog(int level, const char* message);
+uint32_t sys_fork();
+void sys_exit(uint32_t status);
+void send_signal(uint32_t pid, uint32_t sig);
 
 static int strcmp_case_insensitive(const char* s1, const char* s2) {
     while (*s1 && *s2) {
@@ -1204,9 +1276,9 @@ void execute_beep() {
 }
 
 void show_boot_menu() {
-    terminal_setcolor(COLOR_GREEN, COLOR_BLACK);
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_clear();
-    terminal_writestring("\n Srunix R.E. Boot Menu\n");
+    terminal_writestring("\n\n Srunix R.E. Boot Menu\n");
     terminal_writestring(" Copyright (c) 2022, 2023, 2024, 2025 Srunix R.E. BSD 3.0 License\n\n");
 
     terminal_writestring("                   _________________________________\n");
@@ -1479,7 +1551,6 @@ void execute_help(int page) {
             terminal_writestring("poweroff - Shut down\n");
             terminal_writestring("reboot - Reboot\n");
             terminal_writestring("exit - Log out\n");
-            terminal_writestring("sysinfo - System info\n");
             terminal_writestring("touch - Create file\n");
             terminal_writestring("mkdir - Create directory\n");
             terminal_writestring("rm - Delete file\n");
@@ -1489,6 +1560,88 @@ void execute_help(int page) {
             terminal_writestring("Invalid help page\n");
             break;
     }
+}
+
+void execute_ps() {
+    terminal_writestring("PID \t PPID \t PGID \t STATE \t NAME \n");
+    for (int i = 0; i < process_count; i++) {
+        terminal_printf("%d\t%d\t%d\t%s\t%s\n",
+                      processes[i].pid,
+                      processes[i].ppid,
+                      processes[i].pgid,
+                      processes[i].state == 0 ? "RUN" : 
+                      processes[i].state == 1 ? "STOP" : "ZOMB",
+                      processes[i].name);
+    }
+}
+
+void execute_jobs() {
+    for (int i = 0; i < process_count; i++) {
+        if (processes[i].pgid == processes[i].pid) {
+            terminal_printf("[%d] %s %s\n", 
+                          i, 
+                          processes[i].state == 1 ? "Stopped" : "Running",
+                          processes[i].name);
+        }
+    }
+}
+
+void execute_kill(char* pid_str, char* sig_str) {
+    uint32_t pid = atoi(pid_str);
+    uint32_t sig = atoi(sig_str);
+    send_signal(pid, sig);
+}
+
+void klog(int level, const char* message) {
+    char* levels[] = {"DEBUG", "INFO", "WARN", "ERROR"};
+    char time_str[16];
+    uint32_t seconds = timer_ticks / TIMER_HZ;
+    int_to_str(seconds, time_str);
+    
+    terminal_printf("[%s] [%s] %s\n", time_str, levels[level], message);
+    
+}
+
+uint32_t sys_fork() {
+    if (process_count >= MAX_PROCESSES) return -1;
+    
+    Process* parent = &processes[current_process];
+    Process* child = &processes[process_count++];
+    
+    memcpy(child, parent, sizeof(Process));
+    child->pid = process_count + 1;
+    child->ppid = parent->pid;
+    
+    return child->pid;
+}
+
+void sys_exit(uint32_t status) {
+    processes[current_process].state = 2;
+    processes[current_process].exit_code = status;
+}
+
+void send_signal(uint32_t pid, uint32_t sig) {
+    for (int i = 0; i < process_count; i++) {
+        if (processes[i].pid == pid) {
+            switch(sig) {
+                case SIGINT:
+                case SIGKILL:
+                    for (int j = i; j < process_count - 1; j++) {
+                        processes[j] = processes[j + 1];
+                    }
+                    process_count--;
+                    break;
+                case SIGSTOP:
+                    processes[i].state = 1;
+                    break;
+                case SIGCONT:
+                    processes[i].state = 0;
+                    break;
+            }
+            return;
+        }
+    }
+    terminal_printf("Process %d not found\n", pid);
 }
 
 void execute_command(char* cmd) {
@@ -1586,13 +1739,8 @@ void execute_command(char* cmd) {
         execute_reboot();
     } else if (strcmp_case_insensitive(args[0], "exit") == 0) {
         execute_exit();
-    } else if (strcmp_case_insensitive(args[0], "sysinfo") == 0) {
-        execute_sysinfo();
-    } else if (strcmp_case_insensitive(args[0], "ced") == 0) {
-        uint32_t inode = 0;
-        if (arg_count > 1) {
-        }
-        code_ed_run(inode, arg_count > 1 ? args[1] : "newfile");
+    } else if (strcmp_case_insensitive(args[0], "info") == 0) {
+	    info_program_run();
     } else if (strcmp_case_insensitive(args[0], "touch") == 0) {
         if (arg_count > 1) execute_mkfile(args[1]);
         else terminal_writestring("Usage: touch <filename>\n");
@@ -1608,6 +1756,13 @@ void execute_command(char* cmd) {
         else terminal_writestring("Usage: rm <filename>\n");
     } else if (strcmp_case_insensitive(args[0], "beep") == 0) {
         execute_beep();
+    } else if (strcmp_case_insensitive(args[0], "ps") == 0) {
+        execute_ps();
+    } else if (strcmp_case_insensitive(args[0], "jobs") == 0) {
+        execute_jobs();
+    } else if (strcmp_case_insensitive(args[0], "kill") == 0) {
+        if (arg_count >= 3) execute_kill(args[1], args[2]);
+        else terminal_writestring("Usage: kill <pid> <signal>\n");
     } else if (args[0][0] != '\0') {
         terminal_writestring("Command not found: ");
         terminal_writestring(args[0]);
@@ -1713,6 +1868,20 @@ void login_screen() {
     }
 }
 
+void add_to_history(const char* cmd) {
+    if (strlen(cmd) == 0) return;
+    
+    if (history_count < HISTORY_SIZE) {
+        strcpy(command_history[history_count++], cmd);
+    } else {
+        for (int i = 0; i < HISTORY_SIZE-1; i++) {
+            strcpy(command_history[i], command_history[i+1]);
+        }
+        strcpy(command_history[HISTORY_SIZE-1], cmd);
+    }
+    history_pos = history_count;
+}
+
 void shell() {
     char cmd[MAX_CMD_LEN];
     int pos = 0;
@@ -1729,6 +1898,7 @@ void shell() {
             if (c == '\n') {
                 terminal_putchar('\n');
                 cmd[pos] = '\0';
+                add_to_history(cmd);
                 execute_command(cmd);
                 break;
             } else if (c == '\b') {
@@ -1736,7 +1906,27 @@ void shell() {
                     pos--;
                     terminal_putchar('\b');
                 }
-            } else if (c == '\x11' || c == '\x12' || c == '\x13' || c == '\x14') {
+            } else if (c == '\x11') {
+                if (history_pos > 0) {
+                    history_pos--;
+                    strcpy(cmd, command_history[history_pos]);
+                    pos = strlen(cmd);
+                    terminal_column = 0;
+                    for (int i = 0; i < pos; i++) {
+                        terminal_putchar(cmd[i]);
+                    }
+                }
+            } else if (c == '\x12') {
+                if (history_pos < history_count - 1) {
+                    history_pos++;
+                    strcpy(cmd, command_history[history_pos]);
+                    pos = strlen(cmd);
+                    terminal_column = 0;
+                    for (int i = 0; i < pos; i++) {
+                        terminal_putchar(cmd[i]);
+                    }
+                }
+            } else if (c == '\x13' || c == '\x14') {
             } else {
                 cmd[pos++] = c;
                 terminal_putchar(c);
@@ -1790,8 +1980,8 @@ void kernel_main() {
         fs_create_file("vga", dev_inode, FILE_REGULAR);
         fs_create_file("vga1", dev_inode, FILE_REGULAR);
         fs_create_file("vga2", dev_inode, FILE_REGULAR);
-	fs_create_file("null", dev_inode, FILE_REGULAR);
-	fs_create_file("random", dev_inode, FILE_REGULAR);
+        fs_create_file("null", dev_inode, FILE_REGULAR);
+        fs_create_file("random", dev_inode, FILE_REGULAR);
     }
     uint32_t bin_inode = 0;
     for (int i = 0; i < file_count; i++) {

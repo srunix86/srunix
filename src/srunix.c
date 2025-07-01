@@ -233,7 +233,6 @@ char* strpbrk(const char* s, const char* accept) {
     return NULL;
 }
 
-
 char* strdup(const char* s) {
     size_t len = strlen(s) + 1;
     char* new = malloc(len);
@@ -393,6 +392,16 @@ char command_history[HISTORY_SIZE][MAX_CMD_LEN];
 int history_count = 0;
 int history_pos = 0;
 
+bool mouse_enabled = false;
+int mouse_x = 40;
+int mouse_y = 12;
+bool mouse_left_pressed = false;
+bool mouse_right_pressed = false;
+int selection_start_x = -1;
+int selection_start_y = -1;
+int selection_end_x = -1;
+int selection_end_y = -1;
+
 void kernel_main();
 void kernel_panic(const char* message);
 void terminal_initialize();
@@ -417,6 +426,17 @@ void klog(int level, const char* message);
 uint32_t sys_fork();
 void sys_exit(uint32_t status);
 void send_signal(uint32_t pid, uint32_t sig);
+void mouse_wait(uint8_t type);
+void mouse_write(uint8_t data);
+uint8_t mouse_read();
+void mouse_handler();
+void init_mouse();
+void draw_mouse();
+void clear_mouse();
+void update_selection();
+void draw_selection();
+void clear_selection();
+void execute_smouse();
 
 static int strcmp_case_insensitive(const char* s1, const char* s2) {
     while (*s1 && *s2) {
@@ -713,6 +733,178 @@ int bcd_to_bin(int bcd) {
     return (bcd & 0x0F) + ((bcd >> 4) * 10);
 }
 
+void mouse_wait(uint8_t type) {
+    uint32_t timeout = 100000;
+    if (type == 0) {
+        while (timeout--) {
+            if ((inb(0x64) & 1) == 1) return;
+        }
+    } else {
+        while (timeout--) {
+            if ((inb(0x64) & 2) == 0) return;
+        }
+    }
+}
+
+void mouse_write(uint8_t data) {
+    mouse_wait(1);
+    outb(0x64, 0xD4);
+    mouse_wait(1);
+    outb(0x60, data);
+}
+
+uint8_t mouse_read() {
+    mouse_wait(0);
+    return inb(0x60);
+}
+
+void mouse_handler() {
+    static uint8_t mouse_cycle = 0;
+    static char mouse_byte[3];
+    
+    switch(mouse_cycle) {
+        case 0:
+            mouse_byte[0] = mouse_read();
+            if (!(mouse_byte[0] & 0x08)) return;
+            mouse_cycle++;
+            break;
+        case 1:
+            mouse_byte[1] = mouse_read();
+            mouse_cycle++;
+            break;
+        case 2:
+            mouse_byte[2] = mouse_read();
+            
+            mouse_left_pressed = (mouse_byte[0] & 0x01);
+            mouse_right_pressed = (mouse_byte[0] & 0x02);
+            
+            int dx = (int)mouse_byte[1];
+            int dy = (int)mouse_byte[2];
+            
+            if (mouse_byte[0] & 0x10) dx |= 0xFFFFFF00;
+            if (mouse_byte[0] & 0x20) dy |= 0xFFFFFF00;
+            
+            dy = -dy;
+            
+            mouse_x += dx / 2;
+            mouse_y += dy / 2;
+            
+            if (mouse_x < 0) mouse_x = 0;
+            if (mouse_x >= SCREEN_WIDTH) mouse_x = SCREEN_WIDTH - 1;
+            if (mouse_y < 0) mouse_y = 0;
+            if (mouse_y >= SCREEN_HEIGHT) mouse_y = SCREEN_HEIGHT - 1;
+            
+            if (mouse_left_pressed) {
+                if (selection_start_x == -1) {
+                    selection_start_x = mouse_x;
+                    selection_start_y = mouse_y;
+                }
+                selection_end_x = mouse_x;
+                selection_end_y = mouse_y;
+            } else {
+                if (selection_start_x != -1) {
+                    clear_selection();
+                    selection_start_x = -1;
+                    selection_start_y = -1;
+                    selection_end_x = -1;
+                    selection_end_y = -1;
+                }
+            }
+            
+            mouse_cycle = 0;
+            break;
+    }
+}
+
+void init_mouse() {
+    mouse_wait(1);
+    outb(0x64, 0xA8);
+    
+    mouse_wait(1);
+    outb(0x64, 0x20);
+    mouse_wait(0);
+    uint8_t status = inb(0x60) | 2;
+    mouse_wait(1);
+    outb(0x64, 0x60);
+    mouse_wait(1);
+    outb(0x60, status);
+    
+    mouse_write(0xF6);
+    mouse_read();
+    
+    mouse_write(0xF4);
+    mouse_read();
+    
+    mouse_enabled = true;
+}
+
+void draw_mouse() {
+    if (!mouse_enabled) return;
+    
+    uint16_t pos = mouse_y * SCREEN_WIDTH + mouse_x;
+    uint16_t attr = terminal_buffer[pos];
+    terminal_buffer[pos] = 0xDB | (COLOR_WHITE << 8);
+}
+
+void clear_mouse() {
+    if (!mouse_enabled) return;
+    
+    uint16_t pos = mouse_y * SCREEN_WIDTH + mouse_x;
+    uint16_t attr = terminal_buffer[pos];
+    terminal_buffer[pos] = attr;
+}
+
+void update_selection() {
+    if (selection_start_x == -1 || selection_end_x == -1) return;
+    
+    clear_selection();
+    draw_selection();
+}
+
+void draw_selection() {
+    if (selection_start_x == -1 || selection_end_x == -1) return;
+    
+    int start_x = selection_start_x < selection_end_x ? selection_start_x : selection_end_x;
+    int end_x = selection_start_x < selection_end_x ? selection_end_x : selection_start_x;
+    int start_y = selection_start_y < selection_end_y ? selection_start_y : selection_end_y;
+    int end_y = selection_start_y < selection_end_y ? selection_end_y : selection_start_y;
+    
+    for (int y = start_y; y <= end_y; y++) {
+        for (int x = (y == start_y ? start_x : 0); x <= (y == end_y ? end_x : SCREEN_WIDTH - 1); x++) {
+            uint16_t pos = y * SCREEN_WIDTH + x;
+            uint16_t attr = terminal_buffer[pos];
+            terminal_buffer[pos] = (attr & 0xFF) | ((COLOR_BLACK << 4) | COLOR_WHITE) << 8;
+        }
+    }
+}
+
+void clear_selection() {
+    if (selection_start_x == -1 || selection_end_x == -1) return;
+    
+    int start_x = selection_start_x < selection_end_x ? selection_start_x : selection_end_x;
+    int end_x = selection_start_x < selection_end_x ? selection_end_x : selection_start_x;
+    int start_y = selection_start_y < selection_end_y ? selection_start_y : selection_end_y;
+    int end_y = selection_start_y < selection_end_y ? selection_end_y : selection_start_y;
+    
+    for (int y = start_y; y <= end_y; y++) {
+        for (int x = (y == start_y ? start_x : 0); x <= (y == end_y ? end_x : SCREEN_WIDTH - 1); x++) {
+            uint16_t pos = y * SCREEN_WIDTH + x;
+            uint16_t attr = terminal_buffer[pos];
+            terminal_buffer[pos] = (attr & 0xFF) | (terminal_color << 8);
+        }
+    }
+}
+
+void execute_smouse() {
+    if (mouse_enabled) {
+        terminal_writestring("Mouse is already enabled\n");
+        return;
+    }
+    
+    init_mouse();
+    terminal_writestring("Mouse enabled\n");
+}
+
 char keyboard_getchar() {
     while (1) {
         if (inb(0x64) & 0x01) {
@@ -787,6 +979,14 @@ char keyboard_getchar() {
                     return keyboard_map_lower[scancode];
                 }
             }
+        }
+        
+        if (mouse_enabled && (inb(0x64) & 1)) {
+            uint8_t data = inb(0x60);
+            mouse_handler();
+            clear_mouse();
+            draw_mouse();
+            update_selection();
         }
     }
 }
@@ -1276,13 +1476,13 @@ void execute_beep() {
 }
 
 void show_boot_menu() {
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_clear();
     terminal_writestring("\n\n Srunix R.E. Boot Menu\n");
     terminal_writestring(" Copyright (c) 2022, 2023, 2024, 2025 Srunix R.E. BSD 3.0 License\n\n");
-
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_writestring("                   _________________________________\n");
-    terminal_writestring("                  |            Boot Menu    _  [] X |\n");
+    terminal_writestring("                  |            Boot Menu            |\n");
     terminal_writestring("  ,---. ,--.--.   |_________________________________|\n");
     terminal_writestring(" (  .-' |  .--'   |                                 |\n");
     terminal_writestring(" .-'  `)|  |      | 1. Boot Normally [Enter]        |\n");
@@ -1296,7 +1496,7 @@ void show_boot_menu() {
     terminal_writestring(" ,--. \\  `'  /    |                                 |\n");
     terminal_writestring(" |  | /  /.  \\    |           SRUNIX R.E.           |\n");
     terminal_writestring(" `--''--'  '--'   |_________________________________|\n\n");
-    
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_writestring(" Select an option (1-4) or press Enter to boot: ");
 }
 
@@ -1400,7 +1600,7 @@ void get_memory_info(uint32_t* total_kb, uint32_t* used_kb) {
 }
 
 void get_resolution(char* buffer) {
-    strcpy(buffer, "80x25 (text mode)");
+    strcpy(buffer, "1920x1080");
 }
 
 void execute_fetch() {
@@ -1428,30 +1628,59 @@ void execute_fetch() {
         COLOR_BRIGHT_GREEN, COLOR_BRIGHT_BLUE, COLOR_BRIGHT_MAGENTA,
         COLOR_BRIGHT_CYAN
     };
-    
+    terminal_setcolor(COLOR_GREEN, COLOR_BLACK);
     terminal_writestring("              srunix\n");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_writestring("              ----------- \n");
-    terminal_writestring("  ___ ___     OS: Srunix R.E. x86_64 \n");
-    terminal_writestring(" / __| _ |    Host: PC x86\n");
-    terminal_writestring(" |__ |   /    Kernel: SrunixKernel R.E. 8.6\n");
-    terminal_writestring(" |___/_|_| _  Uptime: ");
-    terminal_writestring(uptime_str);
-    terminal_writestring("\n");
-    terminal_writestring(" | | | | || | Packages: 0 (built-in)\n");
-    terminal_writestring(" | |_| | .` | Shell: ush 3.2\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring("  ___ ___     OS:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" Srunix R.E.\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" / __| _ |    Host:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" PC x86_64\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" |__ |   /    Kernel:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" SruKernel R.E. 8.7\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" |___/_|_| _  License:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" BSD-3-Clause license\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" | | | | || | Packages:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" 0 (build-in)\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" | |_| | .` | Shell:");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring(" ush 3.2-12\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_writestring("  |___/|_|._| Resolution: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_writestring(resolution);
     terminal_writestring("\n");
-    terminal_writestring(" |_ _| || /   Terminal: /dev/tty");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" |_ _| || /   Terminal: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring("/dev/tty");
     char tty_num[4];
     int_to_str(current_tty + 1, tty_num);
     terminal_writestring(tty_num);
     terminal_writestring("\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_writestring("  | | >  <    CPU: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_writestring(cpu_name);
     terminal_writestring("\n");
-    terminal_writestring(" |___/_/|_|   GPU: VGA (text mode)\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
+    terminal_writestring(" |___/_/|_|   GPU: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_writestring("VGA (text mode)\n");
+    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_writestring("              Memory: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     char mem_used_str[16], mem_total_str[16];
     int_to_str(used_mem_kb, mem_used_str);
     int_to_str(total_mem_kb, mem_total_str);
@@ -1482,7 +1711,7 @@ void execute_mkfile(char* filename) {
     }
     
     if (file_exists_in_current_dir(filename)) {
-        terminal_writestring("НЕТ!\n");
+        terminal_writestring("no\n");
         return;
     }
     
@@ -1511,9 +1740,24 @@ void execute_mkdir(char* dirname) {
     }
 }
 
-void execute_rm(char* name) {
+void execute_rm(char* name, bool recursive) {
     for (int i = 0; i < file_count; i++) {
         if (files[i].parent_inode == current_inode && strcmp(files[i].name, name) == 0) {
+            if (files[i].type == FILE_DIR && !recursive) {
+                terminal_writestring("Cannot remove directory: use 'rm -rf' for directories\n");
+                return;
+            }
+            
+            if (files[i].type == FILE_DIR && recursive) {
+                uint32_t dir_inode = files[i].inode;
+                for (int j = 0; j < file_count; j++) {
+                    if (files[j].parent_inode == dir_inode) {
+                        execute_rm(files[j].name, true);
+                        j--;
+                    }
+                }
+            }
+            
             if (fs_delete_file(files[i].inode) == FS_SUCCESS) {
                 terminal_printf("'%s' deleted\n", name);
             } else {
@@ -1553,8 +1797,9 @@ void execute_help(int page) {
             terminal_writestring("exit - Log out\n");
             terminal_writestring("touch - Create file\n");
             terminal_writestring("mkdir - Create directory\n");
-            terminal_writestring("rm - Delete file\n");
+            terminal_writestring("rm - Delete file (use -rf for directories)\n");
             terminal_writestring("beep - Play test sound\n");
+            terminal_writestring("smouse - Test a mouse support\n");
             break;
         default:
             terminal_writestring("Invalid help page\n");
@@ -1740,7 +1985,8 @@ void execute_command(char* cmd) {
     } else if (strcmp_case_insensitive(args[0], "exit") == 0) {
         execute_exit();
     } else if (strcmp_case_insensitive(args[0], "info") == 0) {
-	    info_program_run();
+        terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+        info_program_run();
     } else if (strcmp_case_insensitive(args[0], "touch") == 0) {
         if (arg_count > 1) execute_mkfile(args[1]);
         else terminal_writestring("Usage: touch <filename>\n");
@@ -1752,8 +1998,25 @@ void execute_command(char* cmd) {
         if (arg_count > 1) execute_mkdir(args[1]);
         else terminal_writestring("Usage: mkdir <dirname>\n");
     } else if (strcmp_case_insensitive(args[0], "rm") == 0) {
-        if (arg_count > 1) execute_rm(args[1]);
-        else terminal_writestring("Usage: rm <filename>\n");
+        bool recursive = false;
+        char* filename = NULL;
+        
+        if (arg_count > 1) {
+            if (strcmp(args[1], "-rf") == 0) {
+                recursive = true;
+                if (arg_count > 2) {
+                    filename = args[2];
+                }
+            } else {
+                filename = args[1];
+            }
+        }
+        
+        if (filename) {
+            execute_rm(filename, recursive);
+        } else {
+            terminal_writestring("Usage: rm <filename> or rm -rf <dirname>\n");
+        }
     } else if (strcmp_case_insensitive(args[0], "beep") == 0) {
         execute_beep();
     } else if (strcmp_case_insensitive(args[0], "ps") == 0) {
@@ -1763,6 +2026,8 @@ void execute_command(char* cmd) {
     } else if (strcmp_case_insensitive(args[0], "kill") == 0) {
         if (arg_count >= 3) execute_kill(args[1], args[2]);
         else terminal_writestring("Usage: kill <pid> <signal>\n");
+    } else if (strcmp_case_insensitive(args[0], "smouse") == 0) {
+        execute_smouse();
     } else if (args[0][0] != '\0') {
         terminal_writestring("Command not found: ");
         terminal_writestring(args[0]);
@@ -1771,8 +2036,8 @@ void execute_command(char* cmd) {
 }
 
 void print_prompt() {
-    terminal_setcolor(COLOR_WHITE, terminal_color >> 4);
-    terminal_writestring("root:");
+    terminal_setcolor(COLOR_GREEN, terminal_color >> 4);
+    terminal_writestring("");
     if (current_inode != 1) {
         terminal_writestring("~");
         char path[MAX_PATH_LEN] = {0};
@@ -1792,7 +2057,7 @@ void print_prompt() {
         }
         terminal_writestring(path);
     } else {
-        terminal_writestring("~"); 
+        terminal_writestring(""); 
     }
     terminal_writestring("# ");
     terminal_setcolor(COLOR_WHITE, terminal_color >> 4);
@@ -1800,7 +2065,7 @@ void print_prompt() {
 }
 
 void login_screen() {
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+    terminal_setcolor(COLOR_GRAY, COLOR_BLACK);
     terminal_clear();
     terminal_writestring("\n\n");
     terminal_writestring("Srunix R.E. tty");
@@ -1812,7 +2077,7 @@ void login_screen() {
     char username[32] = {0};
     char password[32] = {0};
     int pos = 0;
-    terminal_writestring("srunix login: ");
+    terminal_writestring("login: ");
     while (1) {
         char c = keyboard_getchar();
         if (c == '\n') {
@@ -1844,7 +2109,7 @@ void login_screen() {
             }
         } else if (pos < 31) {
             password[pos++] = c;
-            terminal_putchar(' ');
+            terminal_putchar('*');
         }
     }
     if (strcmp(username, "srunix") == 0 && strcmp(password, "1") == 0) {
@@ -1852,10 +2117,12 @@ void login_screen() {
         ttys[current_tty].logged_in = true;
         shell();
     }
-    if (strcmp(username, "chebupeli") == 0 && strcmp(password, "1") == 0) {
+    if (strcmp(username, "fikus") == 0 && strcmp(password, "1") == 0) {
         ttys[current_tty].logged_in = false;
+        terminal_setcolor(COLOR_WHITE, COLOR_BLUE);
+        terminal_writestring("\nCHEBUPELISIII EBAT\nFikusOS reference\nblyat cho ya nesu\n");
         shell();
-        terminal_writestring("\nCHEBUPELISIII EBAT\n");
+        terminal_setcolor(COLOR_WHITE, COLOR_BLUE);
     }
     if (strcmp(username, "root") == 0 && strcmp(password, "1") == 0) {
         terminal_writestring("\nWelcome to Srunix R.E.\n");
@@ -1885,11 +2152,15 @@ void add_to_history(const char* cmd) {
 void shell() {
     char cmd[MAX_CMD_LEN];
     int pos = 0;
+    terminal_setcolor(COLOR_BRIGHT_RED, COLOR_BLACK);
     terminal_writestring("\nSrunix R.E. tty");
     char tty_num[2];
     int_to_str(current_tty + 1, tty_num);
     terminal_writestring(tty_num);
-    terminal_writestring("\n\n");
+    terminal_writestring("\n");
+    terminal_setcolor(COLOR_GRAY, COLOR_BLACK);
+    terminal_writestring("Type \"help\" to see all the commands in the OS.\n\n");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     while (1) {
         print_prompt();
         pos = 0;
@@ -1998,21 +2269,8 @@ void kernel_main() {
         fs_create_file("fetch", bin_inode, FILE_REGULAR);
         const char* fetch_content = 
             "���������␃�>�␁��� �␁�����@�������àÉ␅���������@�8�␋�@�␞�␝�␆���␄���@�������@�������@�������h␂������h␂������␈�������␃���␄���¨␂������¨␂������¨␂������␜�������␜�������␁�������␁���␄���������������������������␔�␁�����␔�␁������␐������␁���␅��� �␁����� �␁����� �␁������%␄������%␄������␐������␁���␆��� ­␅����� Í␅����� Í␅�����x␔������x␔�������␐������␁���␆��� Á␅����� ñ␅����� ñ␅�����ð␆������Ø␏�������␐������␂���␆���ð¸␅�����ðØ␅�����ðØ␅�����p␂������p␂������␈�������Råtd␄��� ­␅����� Í␅����� Í␅�����x\n"
-            "������� \"              srunix\"\n"
-            "������� \"              ----------- \"\n"
-            "������� \"  ___ ___     OS: Srunix R.E. x86_64 \"\n"
-            "������� \" / __| _ |    Host: PC amd64\"\n"
-            "������� \" |__ |   /    Kernel: SrunixKernel R.E. 8.6\"\n"
-            "������� \" |___/_|_| _  Uptime: \n"
-            "������� \" | | | | || | Packages:\"\n"
-            "������� \" | |_| | .` | Shell: ush 3.2\"\n"
-            "������� \"  |___/|_|._| Resolution: 1920x1080\"\n"
-            "������� \" |_ _| || /   Terminal: /dev/gsh-tty\"\n"
-            "������� \"  | | >  <    CPU:\"\n"
-            "������� \" |___/_/|_|   GPU:\"\n"
-            "������� \"              Memory:\"\n"
-            "������� \"              \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n"
-            "������� \"              \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n";
+            "������� \"              \\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\n"
+            "������� \"              \\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\n";
         for (int i = 0; i < file_count; i++) {
             if (files[i].parent_inode == bin_inode && strcmp(files[i].name, "fetch") == 0) {
                 fs_write_file(files[i].inode, fetch_content, strlen(fetch_content));

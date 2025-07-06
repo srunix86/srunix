@@ -1476,8 +1476,8 @@ void execute_beep() {
 }
 
 void show_boot_menu() {
-    terminal_clear();
     terminal_setcolor(COLOR_BLACK, COLOR_GRAY);
+    terminal_clear();
     terminal_writestring("\n\n Srunix R.E. Boot Menu\n");
     terminal_writestring(" Copyright (c) 2022, 2023, 2024, 2025 Srunix R.E. BSD 3.0 License\n\n");
     terminal_writestring("                   _________________________________\n");

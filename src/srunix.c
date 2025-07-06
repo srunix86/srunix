@@ -1476,11 +1476,10 @@ void execute_beep() {
 }
 
 void show_boot_menu() {
-    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_clear();
+    terminal_setcolor(COLOR_BLACK, COLOR_GRAY);
     terminal_writestring("\n\n Srunix R.E. Boot Menu\n");
     terminal_writestring(" Copyright (c) 2022, 2023, 2024, 2025 Srunix R.E. BSD 3.0 License\n\n");
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
     terminal_writestring("                   _________________________________\n");
     terminal_writestring("                  |            Boot Menu            |\n");
     terminal_writestring("  ,---. ,--.--.   |_________________________________|\n");
@@ -1496,8 +1495,9 @@ void show_boot_menu() {
     terminal_writestring(" ,--. \\  `'  /    |                                 |\n");
     terminal_writestring(" |  | /  /.  \\    |           SRUNIX R.E.           |\n");
     terminal_writestring(" `--''--'  '--'   |_________________________________|\n\n");
-    terminal_setcolor(COLOR_YELLOW, COLOR_BLACK);
     terminal_writestring(" Select an option (1-4) or press Enter to boot: ");
+    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
+
 }
 
 void boot_menu() {

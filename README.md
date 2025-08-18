@@ -11,8 +11,7 @@ https://www.donationalerts.com/r/srunix
 Download dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools`, then use one of the make files:
 
 `./make # for bash`
-or
-`make # if bash is not installed.`
 
-After this you will be able to launch Srunix R.E. via qemu-system-x86_64 using the command `qemu-system-x86_64 -boot d -cdrom srunix.iso`
+
+After this you will be able to launch Srunix R.E. via qemu-system-x86_64 using the command `qemu-system-x86_64 -boot d -cdrom livecd64.iso`
 

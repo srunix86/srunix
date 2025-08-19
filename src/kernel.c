@@ -405,20 +405,6 @@ void execute_fetch() {
     terminal_writestring(" KB / ");
     terminal_writestring(mem_total_str);
     terminal_writestring(" KB\n");
-    
-    terminal_writestring("              ");
-    for (int i = 0; i < 7; i++) {
-        terminal_setcolor(colors[i % sizeof(colors)], colors[i % sizeof(colors)]);
-        terminal_putchar('\xDB');
-    }
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
-    terminal_writestring("\n              ");
-    for (int i = 0; i < 7; i++) {
-        terminal_setcolor(colors[(i + 3) % sizeof(colors)], colors[(i + 3) % sizeof(colors)]);
-        terminal_putchar('\xDB');
-    }
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
-    terminal_writestring("\n");
 }
 
 void execute_mkfile(char* filename) {

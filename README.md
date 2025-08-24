@@ -10,8 +10,7 @@ https://www.donationalerts.com/r/srunix
 # ISO compilation: #
 Download dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools qemu-system qemu`, then use one of the make files:
 
-`chmod 777 make`
-
+`chmod 777 make` 
 `./make`
 
 

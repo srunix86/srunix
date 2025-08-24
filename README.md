@@ -8,10 +8,10 @@ The original Srunix was created a long time ago by one person. It was a kernel f
 If you want to help with the development of Srunix R.E., then you can write to the main developer by email: `srunix@yandex.ru`. If you don’t know how to code, but want to help develop the project, you can simply write a support letter by email or donate through the DonationAlerts platform:
 https://www.donationalerts.com/r/srunix
 # ISO compilation: #
-Download dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools`, then use one of the make files:
+Download dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools qemu-system qemu`, then use one of the make files:
 
 `./make # for bash`
 
 
-After this you will be able to launch Srunix R.E. via qemu-system-x86_64 using the command `qemu-system-x86_64 -boot d -cdrom livecd64.iso`
+After this you will be able to launch Srunix R.E. via qemu-system-x86_64 using the command `qemu-system-amd64 livecd64.iso`
 

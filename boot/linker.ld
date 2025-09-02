@@ -30,5 +30,10 @@ SECTIONS {
         . = ALIGN(16);
         *(.stack)
     }
-}
 
+    /DISCARD/ :
+    {
+        *(.comment)
+        *(.note*)
+    }
+}

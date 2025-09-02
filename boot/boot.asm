@@ -1,22 +1,17 @@
-section .multiboot2
-align 8
-header_start:
-    dd 0xE85250D6
+section .multiboot
+align 4
+    dd 0x1BADB002
+    dd 0x00000003
+    dd -(0x1BADB002 + 0x00000003)
     dd 0
-    dd header_end - header_start
-    dd -(0xE85250D6 + 0 + (header_end - header_start))
-
-    dw 5
-    dw 1
-    dd 20
+    dd 0
+    dd 0
+    dd 0
+    dd 0
+    dd 1
     dd 1920
     dd 1080
     dd 32
-
-    dw 0
-    dw 0
-    dd 8
-header_end:
 
 section .text
 bits 32

@@ -393,6 +393,7 @@ static void int_to_str(int num, char* str) {
     }
 }
 
+
 static inline void outb(uint16_t port, uint8_t val) {
     asm volatile ("outb %0, %1" : : "a"(val), "Nd"(port));
 }

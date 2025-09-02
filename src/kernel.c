@@ -31,58 +31,19 @@ void execute_redirect_output(char* filename, char* text) {
 }
 
 void execute_date() {
-    uint8_t second = cmos_read(0x00);
-    uint8_t minute = cmos_read(0x02);
-    uint8_t hour = cmos_read(0x04);
-    uint8_t day = cmos_read(0x07);
-    uint8_t month = cmos_read(0x08);
-    uint8_t year = cmos_read(0x09);
-    second = bcd_to_bin(second);
-    minute = bcd_to_bin(minute);
-    hour = bcd_to_bin(hour);
-    day = bcd_to_bin(day);
-    month = bcd_to_bin(month);
-    year = bcd_to_bin(year);
-    char hour_str[3], min_str[3], sec_str[3];
-    int_to_str(hour, hour_str);
-    int_to_str(minute, min_str);
-    int_to_str(second, sec_str);
-    char day_str[3], month_str[3], year_str[5];
-    int_to_str(day, day_str);
-    int_to_str(month, month_str);
-    int_to_str(year + 2000, year_str);
     terminal_writestring("");
-    terminal_writestring(day_str);
     terminal_writestring("/");
-    terminal_writestring(month_str);
     terminal_writestring("/");
-    terminal_writestring(year_str);
     terminal_writestring(" ");
-    terminal_writestring(hour_str);
     terminal_writestring(":");
-    terminal_writestring(min_str);
     terminal_writestring(":");
-    terminal_writestring(sec_str);
     terminal_writestring("\n");
 }
 
 void execute_time() {
-    uint8_t hour = cmos_read(0x04);
-    uint8_t minute = cmos_read(0x02);
-    uint8_t second = cmos_read(0x00);
-    hour = bcd_to_bin(hour);
-    minute = bcd_to_bin(minute);
-    second = bcd_to_bin(second);
-    char hour_str[3], min_str[3], sec_str[3];
-    int_to_str(hour, hour_str);
-    int_to_str(minute, min_str);
-    int_to_str(second, sec_str);
     terminal_writestring("");
-    terminal_writestring(hour_str);
     terminal_writestring(":");
-    terminal_writestring(min_str);
     terminal_writestring(":");
-    terminal_writestring(sec_str);
     terminal_writestring("\n");
 }
 
@@ -91,12 +52,7 @@ void execute_whoami() {
 }
 
 void execute_uptime() {
-    uint32_t seconds = timer_ticks / TIMER_HZ;
-    char sec_str[16];
-    int_to_str(seconds, sec_str);
-    terminal_writestring("");
-    terminal_writestring(sec_str);
-    terminal_writestring(" seconds\n");
+    terminal_printf("Uptime: seconds\n");
 }
 
 void execute_ver() {
@@ -266,17 +222,7 @@ void execute_sysinfo() {
     terminal_writestring(" KB used, ");
     terminal_writestring(total_str);
     terminal_writestring(" KB total\n");
-    uint32_t seconds = timer_ticks / TIMER_HZ;
-    uint32_t minutes = seconds / 60;
-    uint32_t hours = minutes / 60;
-    char hours_str[8], mins_str[8];
-    int_to_str(hours, hours_str);
-    int_to_str(minutes % 60, mins_str);
     terminal_writestring("Uptime: ");
-    terminal_writestring(hours_str);
-    terminal_writestring(" hours, ");
-    terminal_writestring(mins_str);
-    terminal_writestring(" mins\n");
     terminal_writestring("\nDisks:\n");
     for (int i = 0; i < disk_count; i++) {
         terminal_printf("- %s: %d MB total, %d MB free\n",
@@ -327,18 +273,7 @@ void execute_fetch() {
     get_memory_info(&total_mem_kb, &used_mem_kb);
     char resolution[32] = {0};
     get_resolution(resolution);
-    char uptime_str[32] = {0};
-    uint32_t seconds = timer_ticks / TIMER_HZ;
-    uint32_t minutes = seconds / 60;
-    uint32_t hours = minutes / 60;
     char hours_str[8], mins_str[8];
-    int_to_str(hours, hours_str);
-    int_to_str(minutes % 60, mins_str);
-    strcpy(uptime_str, hours_str);
-    strcat(uptime_str, " hours, ");
-    strcat(uptime_str, mins_str);
-    strcat(uptime_str, " mins");
-    
     uint8_t colors[] = {
         COLOR_RED, COLOR_GREEN, COLOR_YELLOW, COLOR_BLUE, 
         COLOR_MAGENTA, COLOR_CYAN, COLOR_WHITE, COLOR_BRIGHT_RED,
@@ -504,12 +439,6 @@ void execute_kill(char* pid_str, char* sig_str) {
 
 void klog(int level, const char* message) {
     char* levels[] = {"DEBUG", "INFO", "WARN", "ERROR"};
-    char time_str[16];
-    uint32_t seconds = timer_ticks / TIMER_HZ;
-    int_to_str(seconds, time_str);
-    
-    terminal_printf("[%s] [%s] %s\n", time_str, levels[level], message);
-    
 }
 
 uint32_t sys_fork() {

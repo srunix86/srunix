@@ -1,6 +1,6 @@
 # Main: #
 Srunix R.E. - Open multi-user operating system, Unix-like system. It is a reworking of the original Srunix, which was created a long time ago by the same developers, and was later lost.
-The operating system is written for i386 architecture, executed in 32 bits.
+The operating system is written for amd64 architecture, executed in 64 bits.
 Srunix R.E. - stands for Srunix Remastered Edition. The operating system itself has a lot of everything; it meets all the requirements to be called an OS. It has its own File System (bkFS), which is a reinterpretation of UFS - Unix File System. The system has a login screen, like in Unix systems, multitasking, tty and much more. The system supports all SUS - Single UNIX Specification standards, but still cannot be called Unix.
 There are no programs for partitioning and installation on a real disk in the system yet, but it can be installed on a real disk using Linux or BSD LiveCD systems. The original Srunix was distributed under the BSD license, Srunix R.E. It does not break tradition and is also distributed under the BSD 3.0 open license. The file system supports POSIX standards, the file system, like everything in the OS, is made completely from scratch, except for GRUB2, which loads the OS. You can write your own program for the OS by simply creating a .h file, placing it in src/ and pointing it to the kernel, and then compiling it. So far, the OS has been created just for fun, and is not intended for large-scale things.
 # History: #

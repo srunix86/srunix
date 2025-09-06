@@ -3,6 +3,12 @@
 #include "info.h"
 #include "help.h"
 
+#define MAX_FILE_SIZE 4096
+
+void execute_redirect_output(char* filename, char* text);
+void execute_append_output(char* filename, char* text);
+void execute_cat_redirect(char* source_file, char* dest_file, bool append);
+
 void execute_redirect_output(char* filename, char* text) {
     if (filename == NULL || text == NULL) {
         terminal_writestring("Usage: echo text > filename\n");
@@ -30,6 +36,137 @@ void execute_redirect_output(char* filename, char* text) {
     }
 }
 
+void execute_append_output(char* filename, char* text) {
+    if (filename == NULL || text == NULL) {
+        terminal_writestring("Usage: echo text >> filename\n");
+        return;
+    }
+    for (int i = 0; i < file_count; i++) {
+        if (files[i].parent_inode == current_inode && 
+            strcmp(files[i].name, filename) == 0 && 
+            files[i].type == FILE_REGULAR) {
+            char current_content[MAX_FILE_SIZE];
+            uint32_t bytes_read = fs_read_file(files[i].inode, current_content, MAX_FILE_SIZE - 1);
+            current_content[bytes_read] = '\0';
+            char new_content[MAX_FILE_SIZE];
+            strcpy(new_content, current_content);
+            if (bytes_read > 0 && current_content[bytes_read - 1] != '\n') {
+                strcat(new_content, "\n");
+            }
+            strcat(new_content, text);
+            if (fs_write_file(files[i].inode, new_content, strlen(new_content)) == FS_SUCCESS) {
+            } else {
+                terminal_writestring("Failed to append to file\n");
+            }
+            return;
+        }
+    }
+    if (fs_create_file(filename, current_inode, FILE_REGULAR) == FS_SUCCESS) {
+        if (fs_write_file(files[file_count-1].inode, text, strlen(text)) == FS_SUCCESS) {
+            terminal_writestring("File created and text written\n");
+        } else {
+            terminal_writestring("File created but failed to write text\n");
+        }
+    } else {
+        terminal_writestring("Failed to create file\n");
+    }
+}
+
+void execute_cat_redirect(char* source_file, char* dest_file, bool append) {
+    if (source_file == NULL || dest_file == NULL) {
+        terminal_writestring("Usage: cat <source_file> > <dest_file> or cat <source_file> >> <dest_file>\n");
+        return;
+    }
+    char source_content[MAX_FILE_SIZE];
+    uint32_t bytes_read = 0;
+    bool source_found = false;
+    for (int i = 0; i < file_count; i++) {
+        if (files[i].parent_inode == current_inode && 
+            strcmp(files[i].name, source_file) == 0 && 
+            files[i].type == FILE_REGULAR) {
+            bytes_read = fs_read_file(files[i].inode, source_content, MAX_FILE_SIZE - 1);
+            source_found = true;
+            break;
+        }
+    }
+    if (!source_found || bytes_read == 0) {
+        terminal_printf("Source file not found or empty: %s\n", source_file);
+        return;
+    }
+    source_content[bytes_read] = '\0';
+    bool dest_found = false;
+    uint32_t dest_inode = 0;
+    for (int i = 0; i < file_count; i++) {
+        if (files[i].parent_inode == current_inode && 
+            strcmp(files[i].name, dest_file) == 0 && 
+            files[i].type == FILE_REGULAR) {
+            dest_found = true;
+            dest_inode = files[i].inode;
+            break;
+        }
+    }
+    if (append) {
+        if (dest_found) {
+            char dest_content[MAX_FILE_SIZE];
+            uint32_t dest_bytes = fs_read_file(dest_inode, dest_content, MAX_FILE_SIZE - 1);
+            dest_content[dest_bytes] = '\0';
+            char new_content[MAX_FILE_SIZE];
+            strcpy(new_content, dest_content);
+            if (dest_bytes > 0 && dest_content[dest_bytes - 1] != '\n') {
+                strcat(new_content, "\n");
+            }
+            strcat(new_content, source_content);
+            if (fs_write_file(dest_inode, new_content, strlen(new_content)) == FS_SUCCESS) {
+                terminal_printf("Content from %s appended to %s\n", source_file, dest_file);
+            } else {
+                terminal_writestring("Failed to append to file\n");
+            }
+        } else {
+            if (fs_create_file(dest_file, current_inode, FILE_REGULAR) == FS_SUCCESS) {
+                for (int i = 0; i < file_count; i++) {
+                    if (files[i].parent_inode == current_inode && 
+                        strcmp(files[i].name, dest_file) == 0 && 
+                        files[i].type == FILE_REGULAR) {
+                        if (fs_write_file(files[i].inode, source_content, strlen(source_content)) == FS_SUCCESS) {
+                            terminal_printf("File %s created with content from %s\n", dest_file, source_file);
+                        } else {
+                            terminal_writestring("File created but failed to write content\n");
+                        }
+                        break;
+                    }
+                }
+            } else {
+                terminal_writestring("Failed to create file\n");
+            }
+        }
+    } else {
+        if (dest_found) {
+            if (fs_write_file(dest_inode, source_content, strlen(source_content)) == FS_SUCCESS) {
+                terminal_printf("Content from %s written to %s\n", source_file, dest_file);
+            } else {
+                terminal_writestring("Failed to write to file\n");
+            }
+        } else {
+            if (fs_create_file(dest_file, current_inode, FILE_REGULAR) == FS_SUCCESS) {
+                for (int i = 0; i < file_count; i++) {
+                    if (files[i].parent_inode == current_inode && 
+                        strcmp(files[i].name, dest_file) == 0 && 
+                        files[i].type == FILE_REGULAR) {
+                        if (fs_write_file(files[i].inode, source_content, strlen(source_content)) == FS_SUCCESS) {
+                            terminal_printf("File %s created with content from %s\n", dest_file, source_file);
+                        } else {
+                            terminal_writestring("File created but failed to write content\n");
+                        }
+                        break;
+                    }
+                }
+            } else {
+                terminal_writestring("Failed to create file\n");
+            }
+        }
+    }
+}
+
 void execute_date() {
     terminal_writestring("");
     terminal_writestring("/");
@@ -52,7 +189,7 @@ void execute_whoami() {
 }
 
 void execute_uptime() {
-    terminal_printf("Uptime: seconds\n");
+    terminal_printf("Uptime:\n");
 }
 
 void execute_ver() {
@@ -144,70 +281,6 @@ void execute_beep() {
     beep(1000);
     for (volatile int i = 0; i < 1000000; i++);
     no_sound();
-}
-
-void show_boot_menu() {
-    terminal_setcolor(COLOR_BLUE, COLOR_WHITE);
-    terminal_clear();
-    terminal_writestring("\n\n Srunix R.E. Boot Menu\n");
-    terminal_writestring(" Copyright (c) Srunix R.E. livecd SPL v1 License\n\n");
-    terminal_setcolor(COLOR_BLACK, COLOR_WHITE);
-    terminal_writestring("                   _________________________________\n");
-    terminal_writestring("                  |            Boot Menu            |\n");
-    terminal_writestring("  ,---. ,--.--.   |_________________________________|\n");
-    terminal_writestring(" (  .-' |  .--'   |                                 |\n");
-    terminal_writestring(" .-'  `)|  |      | 1. Boot Srunix [Enter]          |\n");
-    terminal_writestring(" `----' `--'      |                                 |\n");
-    terminal_writestring(" ,--.,--.,--,--,  | 2. Escape to loader prompt      |\n");
-    terminal_writestring(" |  ||  ||      \\ |                                 |\n");
-    terminal_writestring(" '  ''  '|  ||  | | 3. Reboot                       |\n");
-    terminal_writestring("  `----' `--''--' |                                 |\n");
-    terminal_writestring(" ,--.             | 4. Poweroff                     |\n");
-    terminal_writestring(" `--',--.  ,--.   |_________________________________|\n");
-    terminal_writestring(" ,--. \\  `'  /    |                                 |\n");
-    terminal_writestring(" |  | /  /.  \\    |           SRUNIX R.E.           |\n");
-    terminal_writestring(" `--''--'  '--'   |_________________________________|\n\n");
-    terminal_setcolor(COLOR_GREEN, COLOR_WHITE);
-    terminal_writestring(" Select an option (1-4) or press Enter to boot: ");
-    terminal_setcolor(COLOR_WHITE, COLOR_BLACK);
-
-}
-
-void boot_menu() {
-    show_boot_menu();
-    
-    while (1) {
-        char c = keyboard_getchar();
-        
-        if (c == '\n' || c == '1') {
-            terminal_writestring("\n\nBooting Srunix R.E...\n");
-            
-            terminal_writestring("Initializing kernel...\n");
-            for (volatile int i = 0; i < 1000000; i++);
-            
-            terminal_writestring("Mounting root filesystem...\n");
-            for (volatile int i = 0; i < 1000000; i++);
-            
-            terminal_writestring("Starting system services...\n");
-            for (volatile int i = 0; i < 1000000; i++);
-            
-            terminal_writestring("Launching login manager...\n\n");
-            for (volatile int i = 0; i < 2000000; i++);
-            
-            break;
-        } else if (c == '2') {
-            terminal_writestring("\n\nLoader prompt not implemented yet.\n");
-            show_boot_menu();
-        } else if (c == '3') {
-            terminal_writestring("\n\n \n");
-            for (volatile int i = 0; i < 3000000; i++);
-            execute_reboot();
-        } else if (c == '4') {
-            terminal_writestring("\n\n\n");
-            for (volatile int i = 0; i < 3000000; i++);
-            execute_poweroff();
-        }
-    }
 }
 
 void execute_sysinfo() {
@@ -347,12 +420,10 @@ void execute_mkfile(char* filename) {
         terminal_writestring("Invalid filename: contains forbidden characters\n");
         return;
     }
-    
     if (file_exists_in_current_dir(filename)) {
-        terminal_writestring("no\n");
+        terminal_writestring("\n");
         return;
     }
-    
     if (fs_create_file(filename, current_inode, FILE_REGULAR) == FS_SUCCESS) {
         terminal_printf("File '%s' created\n", filename);
     } else {
@@ -365,12 +436,10 @@ void execute_mkdir(char* dirname) {
         terminal_writestring("Invalid directory name: contains forbidden characters\n");
         return;
     }
-    
     if (file_exists_in_current_dir(dirname)) {
         terminal_writestring("Change name\n");
         return;
     }
-    
     if (fs_create_file(dirname, current_inode, FILE_DIR) == FS_SUCCESS) {
         terminal_printf("'%s' created\n", dirname);
     } else {
@@ -385,7 +454,6 @@ void execute_rm(char* name, bool recursive) {
                 terminal_writestring("Cannot remove directory: use 'rm -rf' for directories\n");
                 return;
             }
-            
             if (files[i].type == FILE_DIR && recursive) {
                 uint32_t dir_inode = files[i].inode;
                 for (int j = 0; j < file_count; j++) {
@@ -395,7 +463,6 @@ void execute_rm(char* name, bool recursive) {
                     }
                 }
             }
-            
             if (fs_delete_file(files[i].inode) == FS_SUCCESS) {
                 terminal_printf("'%s' deleted\n", name);
             } else {
@@ -443,14 +510,11 @@ void klog(int level, const char* message) {
 
 uint32_t sys_fork() {
     if (process_count >= MAX_PROCESSES) return -1;
-    
     Process* parent = &processes[current_process];
     Process* child = &processes[process_count++];
-    
     memcpy(child, parent, sizeof(Process));
     child->pid = process_count + 1;
     child->ppid = parent->pid;
-    
     return child->pid;
 }
 
@@ -502,9 +566,15 @@ void execute_command(char* cmd) {
     args[arg_count] = 0;
     if (arg_count == 0) return;
     int redirect_pos = -1;
+    int redirect_type = 0;
     for (int i = 1; i < arg_count; i++) {
         if (strcmp(args[i], ">") == 0) {
             redirect_pos = i;
+            redirect_type = 1;
+            break;
+        } else if (strcmp(args[i], ">>") == 0) {
+            redirect_pos = i;
+            redirect_type = 2;
             break;
         }
     }
@@ -515,9 +585,22 @@ void execute_command(char* cmd) {
                 if (i > 1) strcat(text, " ");
                 strcat(text, args[i]);
             }
-            execute_redirect_output(args[redirect_pos + 1], text);
+            if (redirect_type == 1) {
+                execute_redirect_output(args[redirect_pos + 1], text);
+            } else if (redirect_type == 2) {
+                execute_append_output(args[redirect_pos + 1], text);
+            }
+            return;
+        } 
+        else if (strcmp_case_insensitive(args[0], "cat") == 0) {
+            if (redirect_pos == 1 && arg_count == 3) {
+                bool append = (redirect_type == 2);
+                execute_cat_redirect(args[1], args[2], append);
+            } else {
+                terminal_writestring("Usage: cat <source_file> > <dest_file> or cat <source_file> >> <dest_file>\n");
+            }
+            return;
         }
-        return;
     }
     if (strcmp_case_insensitive(args[0], "help") == 0) {
         int page = 1;
@@ -594,7 +677,6 @@ void execute_command(char* cmd) {
     } else if (strcmp_case_insensitive(args[0], "rm") == 0) {
         bool recursive = false;
         char* filename = NULL;
-        
         if (arg_count > 1) {
             if (strcmp(args[1], "-rf") == 0) {
                 recursive = true;
@@ -605,7 +687,6 @@ void execute_command(char* cmd) {
                 filename = args[1];
             }
         }
-        
         if (filename) {
             execute_rm(filename, recursive);
         } else {
@@ -631,7 +712,6 @@ void execute_command(char* cmd) {
 
 void print_prompt() {
     if (smouse_mode) return;
-    
     terminal_setcolor(COLOR_BRIGHT_GREEN, terminal_color >> 4);
     terminal_writestring("srunix");
     terminal_setcolor(COLOR_GREEN, terminal_color >> 4);
@@ -690,7 +770,7 @@ void login_screen() {
         }
     }
     if (strcmp(username, "srunix") == 0 && strcmp(password, "1") == 0) {
-	terminal_setcolor(COLOR_GREEN, COLOR_BLACK);
+        terminal_setcolor(COLOR_GREEN, COLOR_BLACK);
         terminal_writestring("\nWelcome to Srunix R.E. livecd\n");
         ttys[current_tty].logged_in = true;
         shell();
@@ -708,9 +788,7 @@ void login_screen() {
 
 void add_to_history(const char* cmd) {
     if (smouse_mode) return;
-    
     if (strlen(cmd) == 0) return;
-    
     if (history_count < HISTORY_SIZE) {
         strcpy(command_history[history_count++], cmd);
     } else {
@@ -724,7 +802,6 @@ void add_to_history(const char* cmd) {
 
 void shell() {
     if (smouse_mode) return;
-    
     char cmd[MAX_CMD_LEN];
     int pos = 0;
     terminal_setcolor(COLOR_BRIGHT_RED, COLOR_BLACK);
@@ -799,9 +876,6 @@ void kernel_main() {
     memset(block_used, 0, sizeof(block_used));
     free_blocks = MAX_BLOCKS;
     free_inodes = MAX_INODES;
-
-    boot_menu();
-
     fs_create_file("root", 1, FILE_DIR);
     current_inode = 1;
     fs_create_file("bin", 1, FILE_DIR);
@@ -842,10 +916,7 @@ void kernel_main() {
         fs_create_file("cat", bin_inode, FILE_REGULAR);
         fs_create_file("echo", bin_inode, FILE_REGULAR);
         fs_create_file("fetch", bin_inode, FILE_REGULAR);
-        const char* fetch_content = 
-            "���������␃�>�␁��� �␁�����@�������àÉ␅���������@�8�␋�@�␞�␝�␆���␄���@�������@�������@�������h␂������h␂������␈�������␃���␄���¨␂������¨␂������¨␂������␜�������␜�������␁�������␁���␄���������������������������␔�␁�����␔�␁������␐������␁���␅��� �␁����� �␁����� �␁������%␄������%␄������␐������␁���␆��� ­␅����� Í␅����� Í␅�����x␔������x␔�������␐������␁���␆��� Á␅����� ñ␅����� ñ␅�����ð␆������Ø␏�������␐������␂���␆���ð¸␅�����ðØ␅�����ðØ␅�����p␂������p␂������␈�������Råtd␄��� ­␅����� Í␅����� Í␅�����x\n"
-            "������� \"              \\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\n"
-            "������� \"              \\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\\u2588\n";
+        const char* fetch_content = "priveeet\n";
         for (int i = 0; i < file_count; i++) {
             if (files[i].parent_inode == bin_inode && strcmp(files[i].name, "fetch") == 0) {
                 fs_write_file(files[i].inode, fetch_content, strlen(fetch_content));

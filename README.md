@@ -12,7 +12,7 @@ If you want to help with the development of Srunix R.E., you can write to the le
 https://www.donationalerts.com/r/srunix
 
 The Russian-language Telegram channel for the project, where the developer shares thoughts and news about Srunix:
-https://t.me/srunix86
+https://t.me/srunixre
 
 # ISO compilation: #
 Download the dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools qemu-system qemu`, then use one of the make files:

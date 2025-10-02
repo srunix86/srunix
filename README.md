@@ -1,26 +1,24 @@
 # Main: #
-Srunix R.E. - Open multi-user operating system, Unix-like system. It is a reworking of the original Srunix, which was created a long time ago by the same developers, and was later lost.
-The operating system is written for amd64 architecture, executed in 64 bits.
-Srunix R.E. - stands for Srunix Remastered Edition. The operating system itself has a lot of everything; it meets all the requirements to be called an OS. It has its own File System (bkFS), which is a reinterpretation of UFS - Unix File System. The system has a login screen, like in Unix systems, multitasking, tty and much more. The system supports all SUS - Single UNIX Specification standards, but still cannot be called Unix.
-There are no programs for partitioning and installation on a real disk in the system yet, but it can be installed on a real disk using Linux or BSD LiveCD systems. The original Srunix was distributed under the BSD license, Srunix R.E. It does not break tradition and is also distributed under the BSD 3.0 open license. The file system supports POSIX standards, the file system, like everything in the OS, is made completely from scratch, except for GRUB2, which loads the OS. You can write your own program for the OS by simply creating a .h file, placing it in src/ and pointing it to the kernel, and then compiling it. So far, the OS has been created just for fun, and is not intended for large-scale things.
+Srunix86 is an open-source multi-user operating system, a Unix-like system. It is a rework of the original Srunix, which was created a long time ago by the same developers and was subsequently lost.
+The operating system is written for the x86 architecture and runs in 64-bit mode.
+Srunix86 is a complex project. The operating system itself contains a lot of components; it meets all the requirements to be called an OS. It has its own pseudo file system (bkFS), which is a reimagining of UFS - the Unix File System. The system features a Unix-like login screen, multitasking, TTY, and much more. The system complies with all SUS (Single UNIX Specification) standards but still cannot be called Unix.
+Currently, the system lacks utilities for disk partitioning and installation onto a physical hard drive, but it can be installed on a real disk using Linux or BSD LiveCD systems. The original Srunix was distributed under the BSD license; Srunix R.E. continues this tradition and is also distributed under the open-source BSD 3.0 license. The file system supports POSIX standards. The file system, like everything else in the OS, is built completely from scratch, with the exception of GRUB2, which boots the OS. You can write your own program for the OS by simply creating a .h file, placing it in `src/`, linking to it in the kernel, and then compiling it. Currently, the OS is created mainly for interest and is not intended for large-scale tasks.
+
 # History: #
-The original Srunix was created a long time ago by one person. It was a kernel for YobaOS, which was created for typewriters with a processor, but no one had heard of this operating system, much less the kernel, and development stopped. But in 2022, the development of Srunix R.E began for personal PCs on amd64 processors. Now Srunix R.E. supports only VGA mode and runs only on old or specific PCs with x86_64 processors. On modern PCs, the OS is unlikely to be botched. And the original Srunix was lost forever.
+The original Srunix was created a long time ago by one person. It was a kernel for YobaOS, which was being developed for printing machines with a processor, but no one had heard of this operating system, let alone its kernel, and development halted. However, in 2022, development began on Srunix86 for personal computers with amd64 processors. Currently, Srunix86 only supports VGA mode and only runs on older or specific PCs with Pentium processors. On modern PCs, the OS is unlikely to boot. The original Srunix was lost forever.
+
 # Development: #
-If you want to help with the development of Srunix R.E., then you can write to the main developer by email: `srunix@yandex.ru`. If you don’t know how to code, but want to help develop the project, you can simply write a support letter by email or donate through the DonationAlerts platform:
+If you want to help with the development of Srunix R.E., you can write to the lead developer at the email address: `srunix@yandex.ru`. If you don't know how to code but want to support the project's development, you can simply write a support email or donate via the DonationAlerts platform:
 https://www.donationalerts.com/r/srunix
 
-
-Russian-language telegram of the project where I express my thoughts and share news about Srunix: 
-https://t.me/srunixre
-
+The Russian-language Telegram channel for the project, where the developer shares thoughts and news about Srunix:
+https://t.me/srunix86
 
 # ISO compilation: #
-Download dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools qemu-system qemu`, then use one of the make files: 
+Download the dependencies for compilation: `nasm gcc binutils grub2 xorriso make mtools qemu-system qemu`, then use one of the make files:
 
 `chmod 777 make`
 
 `./make`
 
-
-After this you will be able to launch Srunix R.E. via qemu-system-amd64 using the command `qemu-system-amd64 livecd64.iso`
-
+After that, you will be able to run Srunix86 via qemu-system-amd64 using the command `qemu-system-amd64 srunix86.iso`

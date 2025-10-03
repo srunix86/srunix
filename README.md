@@ -42,4 +42,8 @@ Download the dependencies for compilation: `nasm gcc binutils grub2 xorriso make
 
 After that, you will be able to run Srunix86 via qemu-system-amd64 using the command `qemu-system-amd64 srunix86.iso`
 
+
+
+<img width="1580" height="1836" alt="изображение" src="https://github.com/user-attachments/assets/de51aed7-d9a9-4080-a757-fc2f35478a12" />
+
 </div>

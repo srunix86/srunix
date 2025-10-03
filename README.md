@@ -1,6 +1,4 @@
 
----
-
 ## <font face="Comic Sans MS">MAIN</font>
 
 <div style="background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 50%, #90CAF9 100%); padding: 20px; border-radius: 12px; border: 2px solid #1976D2; box-shadow: 0 4px 12px rgba(25, 118, 210, 0.3); margin: 15px 0; font-family: 'Comic Sans MS', cursive;">

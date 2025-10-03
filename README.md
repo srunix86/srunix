@@ -1,6 +1,3 @@
-# <font face="Comic Sans MS">SRUNIX86</font>
-
-<font face="Comic Sans MS">**Open Source Unix-like Operating System**</font>
 
 ---
 

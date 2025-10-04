@@ -2,16 +2,16 @@
 
 if [ "$1" = "-h" ]; then
     nasm -f elf64 boot/boot.asm -o boot/boot.o
-    gcc -m64 -c src/kernel/kernel.c -o src/sbin/kernel.o -ffreestanding -nostdlib -O2
-    ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/sbin/kernel.o -nostdlib -static
+    gcc -m64 -c src/kernel/kernel.c -o src/kernel.o -ffreestanding -nostdlib -O2
+    ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/kernel.o -nostdlib -static
     grub-mkrescue -o srunix86.iso iso
     exit 0
 fi
 
 if [ "$1" = "-s" ]; then
     nasm -f elf64 boot/boot.asm -o boot/boot.o
-    gcc -m64 -c src/kernel/kernel.c -o src/sbin/kernel.o -ffreestanding -nostdlib -O2
-    ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/sbin/kernel.o -nostdlib -static
+    gcc -m64 -c src/kernel/kernel.c -o src/kernel.o -ffreestanding -nostdlib -O2
+    ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/kernel.o -nostdlib -static
     grub-mkrescue -o srunix86.iso iso > /dev/null 2>&1 &
     
     pid=$!
@@ -36,8 +36,8 @@ if [ "$1" = "-s" ]; then
 fi
 
 nasm -f elf64 boot/boot.asm -o boot/boot.o
-gcc -m64 -c src/kernel/kernel.c -o src/sbin/kernel.o -ffreestanding -nostdlib -O2
-ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/sbin/kernel.o -nostdlib -static
+gcc -m64 -c src/kernel/kernel.c -o src/kernel.o -ffreestanding -nostdlib -O2
+ld -m elf_x86_64 -T boot/linker.ld -o iso/boot/krn.img boot/boot.o src/kernel.o -nostdlib -static
 grub-mkrescue -o srunix86.iso iso > /dev/null 2>&1 &
 
 pid=$!

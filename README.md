@@ -33,4 +33,4 @@ After that, you will be able to run Srunix86 via qemu-system-amd64 using the com
 
 
 
-<img width="698" height="692" alt="srunix-logo" src="https://github.com/user-attachments/assets/31be7279-f1ba-4575-b26f-cc121e257688" />
+<img width="1154" height="1121" alt="srunix86 (копия)" src="https://github.com/user-attachments/assets/7d5b2361-60b9-43c4-8884-901fb4037eeb" />

@@ -18,7 +18,7 @@ detect_os() {
 
 install_packages() {
     local os_id=$1
-    local packages="nasm gcc binutils grub2 xorriso make mtools qemu-system qemu"
+    local packages="nasm gcc binutils grub2 xorriso make mtools qemu-system"
     
     case $os_id in
         ubuntu|debian|linuxmint)

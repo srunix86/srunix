@@ -12,7 +12,7 @@ The original Srunix was created a long time ago by one person. It was a kernel f
 
 # Development
 
-If you want to help with the development of Srunix R.E., you can write to the lead developer at the email address: [`srunix@yandex.ru`](mailto:srunix@yandex.ru). If you don't know how to code but want to support the project's development, you can simply write a support email or donate via the DonationAlerts platform:
+If you want to help with the development of Srunix86, you can write to the lead developer at the email address: [`srunix@yandex.ru`](mailto:srunix@yandex.ru). If you don't know how to code but want to support the project's development, you can simply write a support email or donate via the DonationAlerts platform:
 [https://www.donationalerts.com/r/srunix](https://www.donationalerts.com/r/srunix)
 
 The Russian-language Telegram channel for the project, where the developer shares thoughts and news about Srunix:

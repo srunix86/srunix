@@ -321,6 +321,6 @@ static void __exit exit_bkfs_fs(void)
 module_init(init_bkfs_fs)
 module_exit(exit_bkfs_fs)
 
-MODULE_LICENSE("GPL");
+MODULE_LICENSE("BSD");
 MODULE_AUTHOR("BKFS Developer");
 MODULE_DESCRIPTION("A Simple Robust Filesystem");
